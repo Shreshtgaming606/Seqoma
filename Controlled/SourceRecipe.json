@@ -1,0 +1,14 @@
+{
+  "id": "controlled-sonoma-source-v1",
+  "bundleID": "dev.seqoma.controlled",
+  "version": "1.0",
+  "targetProfile": "macos15-to-14-x86_64",
+  "executable": "ControlledApp",
+  "requiredArchitectures": ["x86_64"],
+  "sourceFiles": ["ControlledApp.swift"],
+  "compilationFlags": ["-parse-as-library", "-framework", "SwiftUI", "-framework", "AppKit"],
+  "modifications": ["Compile the SEQOMA_SONOMA branch to replace macOS 15 window sharing with clipboard copying"],
+  "limitations": ["Sequoia window sharing is replaced by copying text to the clipboard on Sonoma", "Ad-hoc signing replaces developer identity"],
+  "validationProcedures": ["Verify x86_64 Mach-O minimum is 14.0", "Verify ad-hoc signature", "Launch on Sonoma and exercise the optional-feature button"],
+  "rollbackBehavior": "Delete the generated application copy"
+}

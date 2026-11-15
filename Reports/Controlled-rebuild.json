@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-14T21:11:51Z",
+  "id": "E3D1D2AA-DD4E-4127-BEA8-C493FEC1012C",
+  "notes": [
+    "Local ad-hoc signature replaces the original developer signature",
+    "Original notarization and private entitlements are not preserved",
+    "Runtime functionality is untested"
+  ],
+  "originalMainSHA256": "92565a777b16413d270501e32fb65f57bce39ded8c1cd1cb6ae81f41520e887c",
+  "originalPath": "<test-workspace>/work/controlled/ControlledApp.app",
+  "outputPath": "<test-workspace>/work/rebuilt/ControlledApp-Seqoma-5567DCC1.app",
+  "rebuiltMainSHA256": "5b4c972123829e37bc8bc8d2eeb2367db6d0f777e73c2ddeaf54fe1017f9113f",
+  "recipeID": "controlled-sonoma-source-v1",
+  "signatureValid": true,
+  "status": "rebuildSuccessful",
+  "strategy": "source"
+}

@@ -1,0 +1,182 @@
+diff --git a/SpreadPaper/Services/DynamicWallpaperGenerator.swift b/SpreadPaper/Services/DynamicWallpaperGenerator.swift
+index e4fb41c..010e8be 100644
+--- a/SpreadPaper/Services/DynamicWallpaperGenerator.swift
++++ b/SpreadPaper/Services/DynamicWallpaperGenerator.swift
+@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
+ // (https://github.com/mczachurski/wallpapper) by Marcin Czachurski (MIT).
+ 
+ /// One sun-position keyframe in Apple's desktop plist, selecting the frame to show.
+-nonisolated struct SolarItem: Codable {
++struct SolarItem: Codable {
+     /// Single-letter keys as Apple writes them.
+     enum CodingKeys: String, CodingKey {
+         case altitude = "a"
+@@ -21,7 +21,7 @@ nonisolated struct SolarItem: Codable {
+ }
+ 
+ /// One time-of-day keyframe: a day fraction and the frame it switches to.
+-nonisolated struct TimeBasedItem: Codable {
++struct TimeBasedItem: Codable {
+     /// Single-letter keys as Apple writes them.
+     enum CodingKeys: String, CodingKey {
+         case time = "t"
+@@ -32,7 +32,7 @@ nonisolated struct TimeBasedItem: Codable {
+ }
+ 
+ /// Which frames stand in for light and dark mode.
+-nonisolated struct AppearanceInfo: Codable {
++struct AppearanceInfo: Codable {
+     /// Single-letter keys as Apple writes them.
+     enum CodingKeys: String, CodingKey {
+         case darkIndex = "d"
+@@ -44,7 +44,7 @@ nonisolated struct AppearanceInfo: Codable {
+ 
+ /// Root of the h24 desktop plist: time keyframes plus the light and dark fallbacks.
+ /// Solar items stay nil.
+-nonisolated struct DynamicMetadata: Codable {
++struct DynamicMetadata: Codable {
+     /// Two-letter keys as Apple writes them.
+     enum CodingKeys: String, CodingKey {
+         case solarItems = "si"
+diff --git a/SpreadPaper/Services/ImageFileFilter.swift b/SpreadPaper/Services/ImageFileFilter.swift
+index e348173..ab0f8dd 100644
+--- a/SpreadPaper/Services/ImageFileFilter.swift
++++ b/SpreadPaper/Services/ImageFileFilter.swift
+@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
+ 
+ /// Keeps only the local file URLs whose extension names an image type.
+ /// Shared by the wizard and the editor drop zones.
+-nonisolated enum ImageFileFilter {
++enum ImageFileFilter {
+     /// Returns the image file URLs in their original order, everything else removed.
+     /// Web links are dropped so no download happens on the main thread.
+     /// Extensions match case-insensitively via UTType.
+diff --git a/SpreadPaper/Services/SemanticVersion.swift b/SpreadPaper/Services/SemanticVersion.swift
+index 837e466..62f97ad 100644
+--- a/SpreadPaper/Services/SemanticVersion.swift
++++ b/SpreadPaper/Services/SemanticVersion.swift
+@@ -3,7 +3,7 @@ import Foundation
+ /// A semver 2.0 version with optional prerelease and build metadata.
+ /// Ordering follows the spec: numeric core, then prerelease.
+ /// Build metadata never affects ordering or equality.
+-nonisolated struct SemanticVersion: Comparable, Sendable, CustomStringConvertible {
++struct SemanticVersion: Comparable, Sendable, CustomStringConvertible {
+     let major: Int
+     let minor: Int
+     let patch: Int
+diff --git a/SpreadPaper/Services/UpdateChecker.swift b/SpreadPaper/Services/UpdateChecker.swift
+index 1332072..f974d12 100644
+--- a/SpreadPaper/Services/UpdateChecker.swift
++++ b/SpreadPaper/Services/UpdateChecker.swift
+@@ -58,7 +58,7 @@ struct GitHubAsset: Codable {
+ 
+ /// A non-2xx reply from GitHub, worded for the Updates tab.
+ /// The status code stays in the debug log.
+-nonisolated struct GitHubStatusError: LocalizedError, Equatable {
++struct GitHubStatusError: LocalizedError, Equatable {
+     let statusCode: Int
+ 
+     var errorDescription: String? {
+diff --git a/SpreadPaper/Services/WallpaperManager.swift b/SpreadPaper/Services/WallpaperManager.swift
+index b76ee03..5deb278 100644
+--- a/SpreadPaper/Services/WallpaperManager.swift
++++ b/SpreadPaper/Services/WallpaperManager.swift
+@@ -138,7 +138,7 @@ class WallpaperManager {
+     }
+ 
+     /// Refreshes the display list on every screen-parameter change until the calling task is cancelled.
+-    func listenForScreenChanges() async {
++    @MainActor func listenForScreenChanges() async {
+         for await _ in NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification) {
+             refreshScreens()
+         }
+diff --git a/SpreadPaper/Services/WallpaperRenderer.swift b/SpreadPaper/Services/WallpaperRenderer.swift
+index b0fbf3c..712df0f 100644
+--- a/SpreadPaper/Services/WallpaperRenderer.swift
++++ b/SpreadPaper/Services/WallpaperRenderer.swift
+@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
+ /// Placement of one source image on one display. Every field is `Sendable`, so a
+ /// spec built on the main actor can be handed to a detached rendering task
+ /// without moving screen objects across isolation boundaries.
+-nonisolated struct RenderSpec: Sendable {
++struct RenderSpec: Sendable {
+     /// Display frame in the spaced (bezel-compensated) layout, in points.
+     var screenFrame: CGRect
+     /// Union of all display frames, in points.
+diff --git a/SpreadPaper/Theme/CoolDarkTimeField.swift b/SpreadPaper/Theme/CoolDarkTimeField.swift
+index 5b53b96..2aca174 100644
+--- a/SpreadPaper/Theme/CoolDarkTimeField.swift
++++ b/SpreadPaper/Theme/CoolDarkTimeField.swift
+@@ -8,7 +8,7 @@ import SwiftUI
+ /// Clock work the time menus need, held apart from the view that draws them.
+ /// Minutes since midnight are the only value it carries, and
+ /// every result lands inside a day.
+-nonisolated enum TimeFieldMath {
++enum TimeFieldMath {
+     /// Minutes a day holds, and the modulus every value wraps through.
+     static let minutesPerDay = 1440
+ 
+diff --git a/SpreadPaper/Views/GalleryView.swift b/SpreadPaper/Views/GalleryView.swift
+index 682bff9..03fdb3e 100644
+--- a/SpreadPaper/Views/GalleryView.swift
++++ b/SpreadPaper/Views/GalleryView.swift
+@@ -9,6 +9,7 @@ import PhosphorSwift
+ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "SpreadPaper", category: "gallery")
+ 
+ /// Home screen: filter sidebar, search toolbar and the preset grid with apply, edit and manage actions.
++@MainActor
+ struct GalleryView: View {
+     @Bindable var manager: WallpaperManager
+     @Bindable var navigation: AppNavigation
+@@ -31,7 +32,6 @@ struct GalleryView: View {
+     @State private var toastMessage: String? = nil
+     @State private var isImportingLegacy: Bool = false
+     @FocusState private var searchFocused: Bool
+-    @Environment(\.openSettings) private var openSettings
+ 
+     // MARK: - Derived
+ 
+@@ -321,7 +321,7 @@ struct GalleryView: View {
+ 
+             Spacer(minLength: 0)
+ 
+-            Button(action: { openSettings() }) {
++            Button(action: { _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }) {
+                 HStack(spacing: 8) {
+                     Ph.gear.regular
+                         .cdIcon(Color.cdTextSecondary, size: 13)
+@@ -708,17 +708,18 @@ struct GalleryView: View {
+                 applyingPresetId = nil
+                 return
+             }
++            let capturedImages = images
+             Task {
+-                if preset.kind == .appearance, images.count == 2, variants.count == 2 {
++                if preset.kind == .appearance, capturedImages.count == 2, variants.count == 2 {
+                     await manager.applyAppearanceWallpaper(
+                         preset: preset,
+-                        lightImage: images[0], darkImage: images[1],
++                        lightImage: capturedImages[0], darkImage: capturedImages[1],
+                         lightVariant: variants[0], darkVariant: variants[1]
+                     )
+                 } else {
+                     await manager.applyDynamicWallpaper(
+                         preset: preset,
+-                        images: images,
++                        images: capturedImages,
+                         previewScale: preset.previewScale
+                     )
+                 }
+diff --git a/SpreadPaper/Views/ScheduleView.swift b/SpreadPaper/Views/ScheduleView.swift
+index 7c4f062..8e275f6 100644
+--- a/SpreadPaper/Views/ScheduleView.swift
++++ b/SpreadPaper/Views/ScheduleView.swift
+@@ -8,7 +8,7 @@ import PhosphorSwift
+ 
+ /// Copy a schedule entry reads out, kept pure so it can be unit tested.
+ /// Times arrive as minutes since midnight.
+-nonisolated enum ScheduleEntryText {
++enum ScheduleEntryText {
+     /// Place names for the sixteen images a dynamic preset can hold.
+     private static let ordinals = [
+         "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth",

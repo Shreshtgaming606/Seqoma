@@ -1,0 +1,10 @@
+.DS_Store
+.build/
+Build/
+DerivedData/
+*.app/
+Seqoma.app.zip
+seqoma-cli.zip
+Experimental/SpreadPaper-Sonoma-1.10.1.zip
+*.xcuserstate
+xcuserdata/

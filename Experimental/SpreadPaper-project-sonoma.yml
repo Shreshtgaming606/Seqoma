@@ -1,0 +1,30 @@
+name: SpreadPaperSonoma
+options:
+  xcodeVersion: "15.4"
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  PhosphorSwift:
+    url: https://github.com/phosphor-icons/swift
+    from: 2.1.0
+targets:
+  SpreadPaperSonoma:
+    type: application
+    platform: macOS
+    sources:
+      - path: SpreadPaper/App
+      - path: SpreadPaper/Services
+      - path: SpreadPaper/Models
+      - path: SpreadPaper/Navigation
+      - path: SpreadPaper/Views
+      - path: SpreadPaper/Theme
+      - path: SpreadPaper/GeneratedAssetSymbols.swift
+    dependencies:
+      - package: PhosphorSwift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cattlea.SpreadPaper.seqoma-test
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: "YES"

@@ -1,0 +1,12 @@
+{
+  "appPath": "<test-workspace>/work/rebuilt/ControlledApp-Seqoma-5567DCC1.app",
+  "architectureValid": true,
+  "bundleValid": true,
+  "date": "2026-11-14T21:12:52Z",
+  "diagnostic": "Static validation completed. Launch was not requested.",
+  "launched": false,
+  "missingDependencies": [],
+  "remainedRunning": false,
+  "signatureValid": true,
+  "status": "untested"
+}

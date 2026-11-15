@@ -1,0 +1,12 @@
+{
+  "appPath": "<test-workspace>/work/rebuilt/ControlledApp-Seqoma-5567DCC1.app",
+  "architectureValid": true,
+  "bundleValid": true,
+  "date": "2026-11-14T21:12:59Z",
+  "diagnostic": "Process remained running during the observation window. User must verify functionality.",
+  "launched": true,
+  "missingDependencies": [],
+  "remainedRunning": true,
+  "signatureValid": true,
+  "status": "launchSuccessful"
+}

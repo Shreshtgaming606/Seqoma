@@ -1,0 +1,28 @@
+diff --git a/Package.swift b/Package.swift
+index cde6150be..d14170c8e 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -17,7 +17,8 @@ let package = Package(
+         // Targets can depend on other targets in this package and products from dependencies.
+         .target(
+             name: "PhosphorSwift",
+-            path: "Sources"),
++            path: "Sources",
++            exclude: ["PhosphorSwift/Resources/Assets.xcassets"]),
+         .testTarget(
+             name: "PhosphorSwiftTests",
+             dependencies: ["PhosphorSwift"]),
+diff --git a/Sources/PhosphorSwift/PhosphorSwift.swift b/Sources/PhosphorSwift/PhosphorSwift.swift
+index dac9d5661..236966d6d 100644
+--- a/Sources/PhosphorSwift/PhosphorSwift.swift
++++ b/Sources/PhosphorSwift/PhosphorSwift.swift
+@@ -38,7 +38,8 @@ public extension Ph {
+     }
+     
+     private static func icon(_ name: String) -> Image {
+-        Image(name, bundle: .module)
++        let resourceURL = Bundle.main.url(forResource: "PhosphorSwift_PhosphorSwift", withExtension: "bundle")
++        return Image(name, bundle: resourceURL.flatMap(Bundle.init(url:)) ?? .main)
+             .interpolation(.medium)
+             .resizable()
+     }

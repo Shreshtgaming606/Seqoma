@@ -1,0 +1,25 @@
+name: Seqoma
+options:
+  xcodeVersion: "15.4"
+  bundleIdPrefix: dev.seqoma
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGNING_ALLOWED: "NO"
+    GENERATE_INFOPLIST_FILE: "NO"
+    INFOPLIST_FILE: App/Info.plist
+    OTHER_LDFLAGS: "$(inherited) -lsqlite3"
+targets:
+  Seqoma:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: Sources/SeqomaCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.seqoma.app
+        PRODUCT_NAME: Seqoma
