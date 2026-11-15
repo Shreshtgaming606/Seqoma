@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import CryptoKit
 
 public enum CommandRunner {
@@ -22,6 +23,11 @@ public enum CommandRunner {
 }
 
 public enum AppFiles {
+    public static func canonicalURL(_ url: URL) -> URL {
+        guard let resolved = realpath(url.path, nil) else { return url.standardizedFileURL }
+        defer { free(resolved) }
+        return URL(fileURLWithPath: String(cString: resolved), isDirectory: url.hasDirectoryPath)
+    }
     public static func plist(_ app: URL) throws -> [String: Any] {
         guard app.pathExtension == "app", FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/Info.plist").path) else {
             throw SeqomaError.invalidApp("Select an application bundle containing Contents/Info.plist")
@@ -69,13 +75,16 @@ public enum AppFiles {
         return sum
     }
     public static func hashManifest(_ app: URL, cancelled: () -> Bool = { false }) throws -> [String: String] {
+        let app = canonicalURL(app)
         guard let en = FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey], options: []) else { throw SeqomaError.invalidApp("Cannot enumerate application files") }
         var hashes: [String: String] = [:]
         for case let url as URL in en {
             if cancelled() { throw SeqomaError.cancelled }
             let values = try url.resourceValues(forKeys: [.isRegularFileKey])
             if values.isRegularFile == true {
-                let relative = String(url.path.dropFirst(app.path.count + 1))
+                let resolvedPath = canonicalURL(url).path
+                guard resolvedPath.hasPrefix(app.path + "/") else { throw SeqomaError.invalidApp("Application file escapes its bundle") }
+                let relative = String(resolvedPath.dropFirst(app.path.count + 1))
                 hashes[relative] = try sha256(url)
             }
         }
@@ -87,7 +96,7 @@ public final class Analyzer {
     public let profile: CompatibilityProfile
     public init(profile: CompatibilityProfile = .sequoiaToSonoma) { self.profile = profile }
     public func analyze(_ app: URL, cancelled: () -> Bool = { false }) throws -> AnalysisReport {
-        let app = app.standardizedFileURL
+        let app = AppFiles.canonicalURL(app)
         let plist = try AppFiles.plist(app)
         let main = try AppFiles.executable(app, plist: plist)
         guard AppFiles.isMachO(main) else { throw SeqomaError.invalidApp("Main executable is not Mach-O") }
@@ -95,11 +104,11 @@ public final class Analyzer {
         let bundleID = plist["CFBundleIdentifier"] as? String ?? "unknown"
         let version = plist["CFBundleShortVersionString"] as? String ?? (plist["CFBundleVersion"] as? String ?? "unknown")
         var urls = [main]
-        var seenPaths: Set<String> = [main.resolvingSymlinksInPath().path]
+        var seenPaths: Set<String> = [AppFiles.canonicalURL(main).path]
         if let en = FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey], options: [], errorHandler: { _, _ in true }) {
             for case let url as URL in en {
                 if cancelled() { throw SeqomaError.cancelled }
-                let path = url.resolvingSymlinksInPath().path
+                let path = AppFiles.canonicalURL(url).path
                 if !seenPaths.contains(path) && AppFiles.isMachO(url) { urls.append(url); seenPaths.insert(path) }
             }
         }
@@ -166,7 +175,9 @@ public final class Analyzer {
         let imports = Array(trimmed.filter { !$0.isEmpty }.prefix(3000))
         let weak = imports.filter { $0.localizedCaseInsensitiveContains("weak") }
         let objc = imports.filter { $0.contains("OBJC_CLASS_$_") || $0.contains("OBJC_SELECTOR_REFERENCES") }
-        let relative = url.path.replacingOccurrences(of: root.path + "/", with: "")
+        let resolvedPath = AppFiles.canonicalURL(url).path
+        guard resolvedPath.hasPrefix(root.path + "/") else { throw SeqomaError.invalidApp("Binary escapes its application bundle") }
+        let relative = String(resolvedPath.dropFirst(root.path.count + 1))
         return BinaryRecord(path: relative, architectures: arches, deploymentTargets: deployments, dependencies: deps, missingAbsoluteDependencies: missing, imports: imports, weakImports: weak, objcReferences: objc)
     }
 }

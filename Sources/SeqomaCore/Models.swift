@@ -107,11 +107,19 @@ public struct SourceRecipe: Codable {
     public let executable: String
     public let requiredArchitectures: [String]
     public let sourceFiles: [String]
+    public let replacementBinaries: [BinaryReplacement]?
     public let compilationFlags: [String]
     public let modifications: [String]
     public let limitations: [String]
     public let validationProcedures: [String]
     public let rollbackBehavior: String
+}
+
+public struct BinaryReplacement: Codable {
+    public let bundlePath: String
+    public let sourcePath: String
+    public let originalSHA256: String
+    public let replacementSHA256: String
 }
 
 public enum JSONFile {

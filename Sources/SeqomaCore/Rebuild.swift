@@ -10,7 +10,40 @@ public final class Rebuilder {
             guard recipe.bundleID == report.bundleID, recipe.version == report.version, recipe.targetProfile == profile.id, recipe.requiredArchitectures.contains(profile.architecture) else {
                 throw SeqomaError.unsupported("Source recipe does not match this exact app, version, and profile")
             }
-            return RebuildPlan(reportID: report.id, strategy: .source, recipeID: recipe.id, modifications: recipe.modifications + ["Compile specified source files for macOS \(profile.targetVersion) and \(profile.architecture)", "Replace executable in isolated copy", "Update deployment metadata", "Ad-hoc sign rebuilt bundle"], limitations: recipe.limitations, validationProcedures: recipe.validationProcedures, rollbackBehavior: recipe.rollbackBehavior)
+            let replacedPath = "Contents/MacOS/\(recipe.executable)"
+            guard report.binaries.contains(where: { $0.path == replacedPath }) else {
+                throw SeqomaError.unsupported("Source recipe does not name the app's main executable")
+            }
+            let replacements = recipe.replacementBinaries ?? []
+            guard !recipe.sourceFiles.isEmpty || !replacements.isEmpty else {
+                throw SeqomaError.unsupported("Recipe has no source files or component replacements")
+            }
+            let paths = replacements.map(\.bundlePath)
+            guard Set(paths).count == paths.count else {
+                throw SeqomaError.unsupported("Recipe lists the same component more than once")
+            }
+            guard recipe.sourceFiles.isEmpty || !paths.contains(replacedPath) else {
+                throw SeqomaError.unsupported("Recipe cannot compile and replace the main executable twice")
+            }
+            for replacement in replacements {
+                guard report.binaries.contains(where: { $0.path == replacement.bundlePath }),
+                      report.originalFileSHA256[replacement.bundlePath] == replacement.originalSHA256,
+                      replacement.replacementSHA256.count == 64,
+                      replacement.replacementSHA256.allSatisfy(\.isHexDigit) else {
+                    throw SeqomaError.unsupported("Component replacement is not pinned to an analyzed binary")
+                }
+            }
+            var covered = Set(paths)
+            if !recipe.sourceFiles.isEmpty { covered.insert(replacedPath) }
+            let uncovered = report.binaries.filter { !Self.supportsTarget($0, profile: profile) && !covered.contains($0.path) }
+            guard uncovered.isEmpty else {
+                throw SeqomaError.unsupported("\(uncovered.count) incompatible components still need Sonoma replacements")
+            }
+            var steps = recipe.modifications
+            if !recipe.sourceFiles.isEmpty { steps += ["Compile specified source files for macOS \(profile.targetVersion) and \(profile.architecture)"] }
+            if !replacements.isEmpty { steps += ["Install \(replacements.count) hash-pinned component replacements in an isolated copy"] }
+            steps += ["Update deployment metadata", "Ad-hoc sign rebuilt bundle"]
+            return RebuildPlan(reportID: report.id, strategy: .source, recipeID: recipe.id, modifications: steps, limitations: recipe.limitations, validationProcedures: recipe.validationProcedures, rollbackBehavior: recipe.rollbackBehavior)
         }
         guard report.classification == .metadataCandidate, report.issues.isEmpty else {
             throw SeqomaError.unsupported("No verified recipe for required binary or dependency changes: \(report.issues.joined(separator: "; "))")
@@ -23,7 +56,7 @@ public final class Rebuilder {
 
     public func rebuild(_ report: AnalysisReport, plan: RebuildPlan, destination: URL, sourceDirectory: URL? = nil, recipe: SourceRecipe? = nil, cancelled: () -> Bool = { false }) throws -> RebuildResult {
         guard plan.reportID == report.id, report.profile == profile else { throw SeqomaError.unsupported("Plan and analysis report do not match") }
-        let original = URL(fileURLWithPath: report.sourcePath).standardizedFileURL
+        let original = AppFiles.canonicalURL(URL(fileURLWithPath: report.sourcePath))
         let originalPlist = try AppFiles.plist(original)
         let originalExecutable = try AppFiles.executable(original, plist: originalPlist)
         guard try AppFiles.sha256(originalExecutable) == report.originalMainSHA256 else { throw SeqomaError.unsupported("Original executable changed since analysis") }
@@ -49,7 +82,11 @@ public final class Rebuilder {
             guard report.classification == .metadataCandidate else { throw SeqomaError.unsupported("Metadata strategy not allowed by analysis") }
         case .source:
             guard let sourceDirectory = sourceDirectory, let recipe = recipe, recipe.id == plan.recipeID else { throw SeqomaError.unsupported("Matching source recipe and source directory required") }
-            try compileSource(recipe: recipe, from: sourceDirectory, into: workingApp, executableName: originalPlist["CFBundleExecutable"] as? String ?? "")
+            _ = try self.plan(report, sourceRecipe: recipe)
+            if !recipe.sourceFiles.isEmpty {
+                try compileSource(recipe: recipe, from: sourceDirectory, into: workingApp, executableName: originalPlist["CFBundleExecutable"] as? String ?? "")
+            }
+            try replaceComponents(recipe.replacementBinaries ?? [], from: sourceDirectory, into: workingApp)
         case .binaryRecipe:
             throw SeqomaError.unsupported("No version-specific binary patch recipe is installed")
         }
@@ -63,7 +100,7 @@ public final class Rebuilder {
         let verify = try CommandRunner.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", workingApp.path])
         guard verify.0 == 0 else { throw SeqomaError.command("Rebuilt signature failed validation: \(verify.1)") }
         let rebuilt = try Analyzer(profile: profile).analyze(workingApp, cancelled: cancelled)
-        guard rebuilt.binaries.allSatisfy({ $0.architectures.contains(profile.architecture) && !$0.deploymentTargets.contains(where: { (Int($0.split(separator: ".").first ?? "") ?? 0) > profile.targetMajor }) && $0.missingAbsoluteDependencies.isEmpty }) else {
+        guard rebuilt.binaries.allSatisfy({ Self.supportsTarget($0, profile: profile) }) else {
             throw SeqomaError.unsupported("Rebuilt bundle still has incompatible binary targets, architecture, or missing absolute libraries")
         }
         if cancelled() { throw SeqomaError.cancelled }
@@ -72,6 +109,37 @@ public final class Rebuilder {
         try FileManager.default.moveItem(at: workingApp, to: output)
         let main = try AppFiles.executable(output, plist: AppFiles.plist(output))
         return RebuildResult(id: UUID(), date: Date(), originalPath: original.path, outputPath: output.path, strategy: plan.strategy, recipeID: plan.recipeID, originalMainSHA256: report.originalMainSHA256, rebuiltMainSHA256: try AppFiles.sha256(main), signatureValid: true, status: .rebuildSuccessful, notes: ["Local ad-hoc signature replaces the original developer signature", "Original notarization and private entitlements are not preserved", "Runtime functionality is untested"])
+    }
+
+    private static func supportsTarget(_ binary: BinaryRecord, profile: CompatibilityProfile) -> Bool {
+        binary.architectures.contains(profile.architecture)
+            && !binary.deploymentTargets.contains { (Int($0.split(separator: ".").first ?? "") ?? 0) > profile.targetMajor }
+            && binary.missingAbsoluteDependencies.isEmpty
+    }
+
+    private func replaceComponents(_ replacements: [BinaryReplacement], from sourceDirectory: URL, into app: URL) throws {
+        let sourceRoot = AppFiles.canonicalURL(sourceDirectory)
+        let appRoot = AppFiles.canonicalURL(app)
+        for replacement in replacements {
+            guard replacement.bundlePath.hasPrefix("Contents/"),
+                  !replacement.bundlePath.split(separator: "/").contains(".."),
+                  !replacement.sourcePath.hasPrefix("/"),
+                  !replacement.sourcePath.split(separator: "/").contains("..") else {
+                throw SeqomaError.unsupported("Component path escapes the selected directory")
+            }
+            let source = AppFiles.canonicalURL(sourceRoot.appendingPathComponent(replacement.sourcePath))
+            let target = AppFiles.canonicalURL(appRoot.appendingPathComponent(replacement.bundlePath))
+            guard source.path.hasPrefix(sourceRoot.path + "/"),
+                  target.path.hasPrefix(appRoot.path + "/Contents/"),
+                  FileManager.default.fileExists(atPath: source.path),
+                  FileManager.default.fileExists(atPath: target.path),
+                  try AppFiles.sha256(target) == replacement.originalSHA256,
+                  try AppFiles.sha256(source) == replacement.replacementSHA256 else {
+                throw SeqomaError.unsupported("Component files or SHA-256 hashes do not match the recipe")
+            }
+            try FileManager.default.removeItem(at: target)
+            try FileManager.default.copyItem(at: source, to: target)
+        }
     }
 
     private func compileSource(recipe: SourceRecipe, from sourceDirectory: URL, into app: URL, executableName: String) throws {
